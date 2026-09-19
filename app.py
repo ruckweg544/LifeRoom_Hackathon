@@ -176,10 +176,17 @@ def create_app(db_path=None):
                 chore["completed"] = bool(chore["completed"])
             bills = [dict(r) for r in db.execute(
                 "SELECT * FROM bills WHERE household_id=? ORDER BY rowid", (household_id,))]
+            shares_by_bill = defaultdict(list)
+            for row in db.execute(
+                "SELECT s.bill_id, s.user_id, s.amount_cents FROM bill_shares s "
+                "JOIN bills b ON b.id=s.bill_id WHERE b.household_id=? ORDER BY s.user_id",
+                (household_id,),
+            ):
+                shares_by_bill[row["bill_id"]].append(
+                    {"user_id": row["user_id"], "amount_cents": row["amount_cents"]})
             balances = {m["id"]: 0 for m in members}
             for bill in bills:
-                bill["shares"] = [dict(r) for r in db.execute(
-                    "SELECT user_id, amount_cents FROM bill_shares WHERE bill_id=? ORDER BY user_id", (bill["id"],))]
+                bill["shares"] = shares_by_bill[bill["id"]]
                 balances[bill["payer_id"]] += bill["amount_cents"]
                 for share in bill["shares"]:
                     balances[share["user_id"]] -= share["amount_cents"]

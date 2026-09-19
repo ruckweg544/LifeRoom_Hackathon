@@ -1,134 +1,100 @@
-# LifeRoom — Data + Realtime
+# LifeRoom
 
-Minimal FastAPI + SQLite service for the household demo. The repository had no
-application code when this service was added. React, production authentication,
-and Gemini remain integration points owned by the other teammates.
+Roommate household demo: React + TypeScript + Vite frontend, FastAPI + SQLAlchemy
++ SQLite backend. Built on `feature/data-realtime`, incorporating the supplied
+integration ZIP and the existing room isolation, commit-before-notify, reconnect,
+and integer-money approach.
 
-## Run
+## Run the integrated app
 
-Requires Python 3.11+.
+Python 3.11+ and Node 22.12+ are required. From the repository root:
 
 ```sh
+cd backend
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-uvicorn app:app --host 127.0.0.1 --port 8000 --workers 1
+uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 1
 ```
 
-Interactive REST documentation: http://127.0.0.1:8000/docs
-
-Environment variables (see `.env.example`; the application does not automatically
-load `.env`):
-
-- `LIFEROOM_DB_PATH`: SQLite file, default `data/liferoom.sqlite3`.
-- `LIFEROOM_ALLOWED_ORIGINS`: comma-separated frontend origins, default
-  `http://localhost:5173,http://127.0.0.1:5173`. Used for CORS and WebSocket origin checks.
-
-The schema is initialized on startup. Store the database directory on persistent
-storage when hosting. Use **one worker**: socket subscriptions live in memory.
-SQLite and full household snapshots are intentionally sized for a small demo.
-Use HTTPS/WSS outside localhost.
-
-## Identity and households
-
-`POST /sessions` with `{"name":"Alice"}` creates a guest identity and returns
-`{"user":{"id":"...","name":"Alice"},"token":"..."}`. Save the token privately;
-subsequent REST requests require `Authorization: Bearer <token>`. Display names
-are not identities. Tokens and invite codes are generated randomly; only their
-hashes are stored in SQLite. No configured secret is required.
-
-This is demo guest authentication: no passwords, account recovery, session expiry,
-or revocation. The backend team should replace session issuance/verification with
-its chosen authentication while preserving user IDs and membership checks. Do not
-expose this guest bootstrap publicly as finished production authentication.
-
-1. Alice creates a household with `POST /households`, body `{"name":"Our house"}`.
-   Response includes `id`, `name`, and a private `invite_code` shown only at creation.
-2. Bob creates his own session, then calls `POST /households/join` with
-   `{"invite_code":"<Alice's invite>"}`. Rejoining is idempotent.
-3. `GET /households` returns the caller's households. Each household member can
-   read and update household data. Nonmembers are rejected, including on sockets.
-
-## REST contract
-
-All paths below start with `/households/{household_id}` and require a bearer token.
-IDs are strings. Dates are `YYYY-MM-DD`; timestamps are UTC. Responses use the
-same field names as requests, plus persisted IDs and ownership fields.
-
-| Method/path | Request | Result |
-| --- | --- | --- |
-| `GET /state` | — | Household snapshot: `members`, `messages`, `chores`, `bills`, `balances_cents` |
-| `POST /messages` | `{"content":"Hello!"}` | Saved message with `id`, `household_id`, `sender_id`, `content`, `created_at` |
-| `POST /chores` | `{"title":"Dishes","assignee_id":"<member ID>","due_date":"2026-09-20"}` | Saved chore; `completed` starts as `false` |
-| `PATCH /chores/{chore_id}` | `{"completed":true}` | Updated chore; also accepts `assignee_id` and `due_date` |
-| `POST /bills` | `{"title":"Groceries","amount_cents":1001,"payer_id":"<member ID>","participant_ids":["<Alice ID>","<Bob ID>"]}` | Saved bill with exact `shares` |
-
-Chore assignment and due date are optional; send `null` in a patch to clear them.
-Completion must be a boolean and is set explicitly, never toggled. Concurrent
-updates to the same field use last-write-wins; unrelated patch fields are preserved.
-
-Bills split equally across the selected participants. Remainder cents go to
-participants in sorted user-ID order. Payer and participants must be household
-members; participants must be unique. Bills and shares commit atomically.
-Amounts use integer cents in one household currency (USD for this demo).
-Positive `balances_cents[user_id]` means the member is owed money; negative means
-they owe money. Balances are derived from saved bills, not separately maintained.
-
-## WebSocket contract
-
-Connect to `ws://127.0.0.1:8000/households/{household_id}/events`.
-Send `{"token":"<session token>"}` as the first frame within five seconds.
-Tokens are deliberately excluded from URLs. Invalid authentication, membership,
-or browser origins are rejected. Server-side ping/pong is handled by Uvicorn.
-
-The server replies with `{"type":"ready","household_id":"..."}`. After that,
-each committed mutation notifies every connected household member, including
-its sender:
-
-```json
-{"type":"chore.updated","household_id":"...","entity_id":"..."}
-```
-
-Event types: `member.joined`, `message.created`, `chore.created`, `chore.updated`,
-and `bill.created`. Frames after authentication are not mutation commands; use
-REST to create messages and change data. An event invalidates the snapshot; it
-does not carry an independently mergeable copy of an entity.
-
-Frontend integration:
-
-1. Register the socket message handler, connect, and send the token on open.
-2. On `ready` **and every event**, fetch `/state` and replace the displayed state.
-   Serialize refresh requests; if an event arrives during a fetch, fetch again
-   afterward. This avoids an older response overwriting newer state.
-3. On socket close, reconnect with a capped retry delay; authenticate and fetch
-   again after `ready`. Stop retrying on authentication rejection (`1008`).
-4. Close the socket when leaving the household or unmounting the UI.
-5. Handle REST errors visibly and refresh after successful writes as well.
-
-Notifications are not durable or replayed. Persisted snapshots recover missed
-events after reconnects or server restarts. Subscribe before the initial fetch
-so writes between loading and subscription are not missed. Slow/disconnected
-sockets are removed without undoing committed writes. Avoid automatic retries
-of POST requests after ambiguous network failures: create operations do not yet
-accept idempotency keys.
-
-## Verify the demo
+In another terminal:
 
 ```sh
-source .venv/bin/activate
-python -m unittest -v test_app
+cd frontend
+npm ci
+npm run dev -- --host 127.0.0.1
 ```
 
-The integration check uses a temporary database and two authenticated WebSocket
-clients. It verifies joining, chat delivery, chore creation/completion, equal bill
-splits and balances, reconnect snapshots, persistence across application restarts,
-input validation, and rejection of nonmembers and untrusted browser origins.
-It does not require or modify a running server or a real household database.
+Open http://127.0.0.1:5173. API docs: http://127.0.0.1:8000/docs.
+Create a household, copy its code from Members, and join with a different name in
+another browser profile/private window. Those sessions can exchange messages,
+create/assign/complete chores, and split bills with live updates. Separate profiles
+are needed because the guest session is stored in localStorage.
 
-For a frontend demo, open two browser sessions with separate guest identities,
-join the same household, and wire both to the socket/REST contract above.
-There is no React UI in this repository yet. Receipt processing, recurring bills,
-and AI features are outside this Data + Realtime demo slice.
+Optional local settings are documented in each directory's `.env.example`.
+The backend reads its `.env`; frontend `VITE_*` values are public configuration,
+never secrets. Default database is `backend/liferoom.db` when started as above.
+Use persistent storage and HTTPS/WSS when hosting. **Run one backend worker**;
+connections and presence are process-local.
 
-Implementation references: [FastAPI WebSockets](https://fastapi.tiangolo.com/advanced/websockets/)
-and [lifespan testing](https://fastapi.tiangolo.com/advanced/testing-events/).
+## Data and realtime contract
+
+- `POST /api/households` and `/api/households/join` issue a random guest bearer
+  token. Only its SHA-256 digest is stored. Passwords for joining are optional and
+  bcrypt-hashed. Guest sessions have no expiration/recovery or revocation yet.
+- All resource routes derive household membership from the bearer token.
+  Assignees, payers, participants, reads and updates are checked against that room.
+- Send messages through `POST /api/messages`. The sender comes from the session;
+  the UI clears its draft only after the server confirms the saved message.
+- Connect to `/ws/{household_id}`, then send `{"token":"..."}` within five seconds.
+  Browser origins and room membership are checked. Tokens never appear in the URL.
+- `ready`, `presence`, `message.created`, and `household.changed` trigger REST
+  refreshes. Writes notify only after commit. Subscribe-before-refresh and a fresh
+  read after reconnect recover missed events. Older requests cannot overwrite a
+  newer page request. REST POST retries are manual (no idempotency keys yet).
+- Bills accept decimal dollars with at most two fractional digits, store integer
+  cents, and split remainder cents deterministically. Participant shares and bills
+  commit together. Payer's own share cannot be marked unpaid.
+- Presence is derived from active sockets, so closing one of several tabs does
+  not incorrectly mark a member offline.
+
+## Validation
+
+```sh
+cd backend
+.venv/bin/python -m pytest -q
+```
+
+```sh
+cd frontend
+npm run build
+npm run lint
+```
+
+The backend suite covers API access, password validation, money, two authenticated
+WebSocket clients, room isolation, reconnect reads, multiple-tab presence, hashed
+credentials and invalid updates. Frontend build checks TypeScript and all imports.
+
+The original standalone implementation is preserved at root (`app.py`,
+`schema.sql`, `test_app.py`); its tests run with `.venv/bin/python -m unittest -v test_app`
+from the root. See [its original contract](DATA_REALTIME_REFERENCE.md). It is a
+reference/regression baseline, **not** the server used by this React frontend.
+Do not point both implementations at the same database: schemas are different.
+No existing databases, sessions, or ZIP seed databases were migrated or overwritten.
+
+## ZIP corrections and scope
+
+The supplied archive had empty `src/components` folders, so the missing UI was
+restored to match its existing pages. Chore/bill updates had no room notifications;
+those and reconnect refreshes now use the Data + Realtime approach. Cross-household
+chore reassignment, null patch failures, fractional-cent bills, raw stored session
+tokens, multi-tab presence, and repeated bill queries were corrected. The seed
+script now leaves an existing demo household untouched. The frontend development
+server/router dependencies were updated after the imported lockfile reported
+known vulnerabilities.
+
+AI code was absent from the ZIP (confirmed by the user). AI, receipt scanning and
+monthly recurring expenses are not implemented here. The ZIP's existing grocery
+pages remain; no new grocery feature scope was added. Browser interaction testing
+was unavailable in the connected environment; use the two-profile flow above for
+visual acceptance.

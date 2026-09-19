@@ -1,0 +1,2 @@
+import type { GroceryItem } from "../../types";
+export function GroceryRow({item,onTogglePurchased,onDelete}:{item:GroceryItem;onTogglePurchased:(i:GroceryItem)=>void;onDelete:(i:GroceryItem)=>void}) { return <li className="card item-row"><label><input type="checkbox" checked={item.purchased} onChange={()=>onTogglePurchased(item)} /> {item.name} × {item.quantity}</label><button onClick={()=>onDelete(item)} aria-label={`Delete ${item.name}`}>Delete</button></li>; }

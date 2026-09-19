@@ -1,6 +1,8 @@
 import tempfile
 import unittest
+import sqlite3
 from pathlib import Path
+from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
@@ -9,6 +11,38 @@ from app import create_app
 
 
 class DemoTest(unittest.TestCase):
+    def test_multiple_bills_use_one_share_query(self):
+        with tempfile.TemporaryDirectory() as directory:
+            with TestClient(create_app(Path(directory) / "bills.sqlite3")) as client:
+                session = client.post("/sessions", json={"name": "Alice"}).json()
+                user_id = session["user"]["id"]
+                headers = {"Authorization": f"Bearer {session['token']}"}
+                house = client.post("/households", headers=headers, json={"name": "Home"}).json()
+                root = f"/households/{house['id']}"
+                bills = []
+                for amount in (101, 202, 303):
+                    response = client.post(root + "/bills", headers=headers, json={
+                        "title": "Bill", "amount_cents": amount, "payer_id": user_id,
+                        "participant_ids": [user_id]})
+                    self.assertEqual(response.status_code, 201)
+                    bills.append(response.json())
+                statements = []
+                connect = sqlite3.connect
+
+                def traced_connect(*args, **kwargs):
+                    db = connect(*args, **kwargs)
+                    db.set_trace_callback(statements.append)
+                    return db
+
+                with patch("app.sqlite3.connect", side_effect=traced_connect):
+                    response = client.get(root + "/state", headers=headers)
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.json()["bills"], bills)
+                self.assertEqual(response.json()["balances_cents"], {user_id: 0})
+                share_queries = [sql for sql in statements
+                                 if sql.lstrip().upper().startswith("SELECT") and "bill_shares" in sql]
+                self.assertEqual(len(share_queries), 1)
+
     def test_demo_persistence_and_isolation(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "demo.sqlite3"
