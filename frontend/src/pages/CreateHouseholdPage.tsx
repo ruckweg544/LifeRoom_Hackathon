@@ -7,7 +7,7 @@ import { ApiError } from "../services/api";
 import { householdService } from "../services/householdService";
 import { AuthLayout } from "./AuthLayout";
 
-export function CreateHouseholdPage() {
+export function CreateHouseholdPage({ embedded = false }: { embedded?: boolean }) {
   const navigate = useNavigate();
   const { applySession } = useHousehold();
 
@@ -47,8 +47,7 @@ export function CreateHouseholdPage() {
     }
   };
 
-  return (
-    <AuthLayout title="Create your household" subtitle="Set up a private room for you and your roommates.">
+  const form = (
       <form className="auth-form" onSubmit={handleSubmit} noValidate>
         {errors.form && <p className="auth-form__error">{errors.form}</p>}
 
@@ -59,7 +58,7 @@ export function CreateHouseholdPage() {
           onChange={(e) => setDisplayName(e.target.value)}
           error={errors.displayName}
           maxLength={60}
-          autoFocus
+          autoFocus={!embedded}
         />
 
         <Input
@@ -84,10 +83,11 @@ export function CreateHouseholdPage() {
           Create household
         </Button>
 
-        <p className="auth-form__footer">
+        {!embedded && <p className="auth-form__footer">
           Already have a room code? <Link to="/join">Join a room</Link>
-        </p>
+        </p>}
       </form>
-    </AuthLayout>
   );
+
+  return embedded ? form : <AuthLayout title="Create your household" subtitle="Set up a private room for you and your roommates.">{form}</AuthLayout>;
 }

@@ -23,6 +23,14 @@
   margin: var(--space-6) 0 var(--space-8);
 }
 
+.summary-grid > .card > p {
+  font-weight: 300;
+}
+
+.summary-grid > .card > strong {
+  font-weight: 500;
+}
+
 .dashboard-grid {
   display: grid;
   grid-template-columns: 1.3fr 1fr;
