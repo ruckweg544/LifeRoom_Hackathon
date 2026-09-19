@@ -1,10 +1,13 @@
 import logging
+from pathlib import Path
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.api import bills, chores, dashboard, groceries, households, members, messages
 from app.core.config import get_settings
@@ -73,3 +76,16 @@ app.include_router(chat_ws.router)
 @app.get("/api/health")
 def health_check():
     return {"status": "ok", "service": settings.app_name}
+
+
+# Serve the built UI and API from one origin for team demo tunnels.
+frontend_dist = Path(__file__).resolve().parents[2] / "frontend" / "dist"
+if frontend_dist.is_dir():
+    @app.get("/app", include_in_schema=False)
+    @app.get("/app/{path:path}", include_in_schema=False)
+    @app.get("/create", include_in_schema=False)
+    @app.get("/join", include_in_schema=False)
+    def frontend_page():
+        return FileResponse(frontend_dist / "index.html")
+
+    app.mount("/", StaticFiles(directory=frontend_dist, html=True), name="frontend")
