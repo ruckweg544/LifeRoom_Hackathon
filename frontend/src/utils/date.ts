@@ -37,17 +37,3 @@ export function formatDueDate(isoDate: string | null): string {
 
   return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
-
-export function isOverdue(isoDate: string | null): boolean {
-  if (!isoDate) return false;
-  return new Date(isoDate).getTime() < Date.now();
-}
-
-/** <input type="datetime-local"> needs local time with no timezone suffix. */
-export function toDatetimeLocalValue(isoDate: string | null): string {
-  if (!isoDate) return "";
-  const date = new Date(isoDate);
-  const offset = date.getTimezoneOffset();
-  const local = new Date(date.getTime() - offset * 60000);
-  return local.toISOString().slice(0, 16);
-}

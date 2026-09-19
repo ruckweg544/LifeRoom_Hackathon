@@ -1,9 +1,7 @@
 # LifeRoom
 
 Roommate household demo: React + TypeScript + Vite frontend, FastAPI + SQLAlchemy
-+ SQLite backend. Built on `feature/data-realtime`, incorporating the supplied
-integration ZIP and the existing room isolation, commit-before-notify, reconnect,
-and integer-money approach.
++ SQLite backend.
 
 ## Run the integrated app
 
@@ -75,26 +73,11 @@ The backend suite covers API access, password validation, money, two authenticat
 WebSocket clients, room isolation, reconnect reads, multiple-tab presence, hashed
 credentials and invalid updates. Frontend build checks TypeScript and all imports.
 
-The original standalone implementation is preserved at root (`app.py`,
-`schema.sql`, `test_app.py`); its tests run with `.venv/bin/python -m unittest -v test_app`
-from the root. See [its original contract](DATA_REALTIME_REFERENCE.md). It is a
-reference/regression baseline, **not** the server used by this React frontend.
-Do not point both implementations at the same database: schemas are different.
-No existing databases, sessions, or ZIP seed databases were migrated or overwritten.
+## Scope
 
-## ZIP corrections and scope
+The application lives in `backend/` and `frontend/`. The retired standalone server
+and its schema/tests remain available in Git history; they are not needed to run
+this app. Existing database files are not migrated or removed automatically.
 
-The supplied archive had empty `src/components` folders, so the missing UI was
-restored to match its existing pages. Chore/bill updates had no room notifications;
-those and reconnect refreshes now use the Data + Realtime approach. Cross-household
-chore reassignment, null patch failures, fractional-cent bills, raw stored session
-tokens, multi-tab presence, and repeated bill queries were corrected. The seed
-script now leaves an existing demo household untouched. The frontend development
-server/router dependencies were updated after the imported lockfile reported
-known vulnerabilities.
-
-AI code was absent from the ZIP (confirmed by the user). AI, receipt scanning and
-monthly recurring expenses are not implemented here. The ZIP's existing grocery
-pages remain; no new grocery feature scope was added. Browser interaction testing
-was unavailable in the connected environment; use the two-profile flow above for
-visual acceptance.
+AI, receipt scanning and monthly recurring expenses are not implemented.
+Use the two-profile flow above for visual acceptance testing.

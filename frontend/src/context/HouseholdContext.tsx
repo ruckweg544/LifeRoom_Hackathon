@@ -14,7 +14,6 @@ interface HouseholdContextValue {
   isLoading: boolean;
   isAuthenticated: boolean;
   applySession: (session: SessionResponse) => void;
-  refreshMembers: (members: Member[]) => void;
   updateCurrentMember: (member: Member) => void;
   leaveHousehold: () => void;
 }
@@ -36,10 +35,6 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
     setMembers(session.members);
     setSessionToken(session.session_token);
     storeToken(session.session_token);
-  }, []);
-
-  const refreshMembers = useCallback((updated: Member[]) => {
-    setMembers(updated);
   }, []);
 
   const updateCurrentMember = useCallback((member: Member) => {
@@ -101,11 +96,10 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
       isLoading,
       isAuthenticated: Boolean(household && currentMember && sessionToken),
       applySession,
-      refreshMembers,
       updateCurrentMember,
       leaveHousehold,
     }),
-    [realtimeVersion, connectionState, household, currentMember, members, sessionToken, isLoading, applySession, refreshMembers, updateCurrentMember, leaveHousehold]
+    [realtimeVersion, connectionState, household, currentMember, members, sessionToken, isLoading, applySession, updateCurrentMember, leaveHousehold]
   );
 
   return <HouseholdContext.Provider value={value}>{restoreError ? <div role="alert">{restoreError} <button onClick={() => window.location.reload()}>Retry</button></div> : children}</HouseholdContext.Provider>;
