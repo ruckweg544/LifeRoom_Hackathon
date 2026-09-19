@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -23,3 +23,15 @@ class MessageOut(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class ChoreSuggestion(BaseModel):
+    title: str
+    assigned_to_id: str | None = None
+    due_date: date | None = None
+
+
+class MessageAnalysisOut(BaseModel):
+    message_id: str
+    is_task: bool
+    suggestion: ChoreSuggestion | None = None

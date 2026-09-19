@@ -7,6 +7,7 @@ from app.models.chore import Priority
 
 
 class CreateChoreRequest(BaseModel):
+    source_message_id: Optional[str] = Field(default=None, min_length=1, max_length=36)
     title: str = Field(min_length=1, max_length=120)
     description: Optional[str] = Field(default=None, max_length=1000)
     assigned_to_id: Optional[str] = None
@@ -38,6 +39,7 @@ class UpdateChoreRequest(BaseModel):
 
 
 class ChoreOut(BaseModel):
+    source_message_id: Optional[str] = None
     id: str
     household_id: str
     title: str
