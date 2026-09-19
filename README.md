@@ -81,3 +81,44 @@ this app. Existing database files are not migrated or removed automatically.
 
 AI, receipt scanning and monthly recurring expenses are not implemented.
 Use the two-profile flow above for visual acceptance testing.
+
+
+### Optional chat-to-chore analysis API
+
+Set `GEMINI_API_KEY` and `GEMINI_MODEL` in the backend environment (choose a
+model enabled for your Google project). `AI_TIMEZONE` defaults to
+`America/New_York`. No new dependencies are required; analysis uses async HTTP.
+
+1. Save chat with `POST /api/messages` as usual.
+2. Call `POST /api/messages/{message_id}/analyze` with the same bearer token.
+   Only messages in the caller's household can be analyzed.
+3. Show the returned suggestion for confirmation. Analysis never creates a chore.
+4. Submit the confirmed values to `POST /api/chores`, including
+   `source_message_id: message_id`. A duplicate linked chore returns `409`.
+   Existing `household.changed` notifications synchronize the result.
+
+Example analysis response:
+```json
+{"message_id":"uuid","is_task":true,"suggestion":{"title":"Do dishes","assigned_to_id":null,"due_date":"2026-09-20"}}
+```
+
+Small talk returns `is_task: false, suggestion: null`. Provider failures return
+`503` with `detail.code: AI_UNAVAILABLE`; missing configuration returns
+`AI_NOT_CONFIGURED`. Retry analysis only, not message creation. Requests are
+limited to 10 per household per minute and 4 simultaneous calls per process
+(`429 AI_RATE_LIMITED`); these demo limits assume a single server worker.
+Provider calls have a 15-second total timeout and no automatic retries.
+
+Suggestion dates are calendar dates, resolved relative to the message timestamp
+in `AI_TIMEZONE`. The client must select a due time and send an ISO datetime with
+an explicit offset to the chore API. Unknown or ambiguous assignees remain null.
+Chat now analyzes newly sent messages and offers Review & add for detected chores.
+Users can edit the title, assignee, and local due time before confirming. Analysis
+failures offer Retry analysis without resending chat. Older own messages can be
+analyzed with Find a chore. Suggestions are not persisted across page reloads.
+
+On startup an additive migration adds the nullable `chores.source_message_id`
+column and its unique index to existing databases. Existing chores are preserved;
+back up the database before deployment. Deleting a chore permits recreating it
+from the message. The AI route has mocked tests; live Gemini verification requires
+your project's credentials/model.

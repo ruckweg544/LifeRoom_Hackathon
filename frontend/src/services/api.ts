@@ -93,7 +93,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 
   if (!response.ok) {
     const errShape = (payload || {}) as ApiErrorShape;
-    const message = errShape.detail || `Request failed (${response.status})`;
+    const message = typeof errShape.detail === "string" ? errShape.detail : `Request failed (${response.status})`;
     throw new ApiError(response.status, message, errShape.errors || []);
   }
 

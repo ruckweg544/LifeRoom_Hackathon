@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { MessageChoreSuggestion } from "../components/chat/MessageChoreSuggestion";
 import { ConnectionBadge } from "../components/chat/ConnectionBadge";
 import { MessageBubble } from "../components/chat/MessageBubble";
 import { EmptyState } from "../components/common/ui";
@@ -21,6 +22,7 @@ export function ChatPage() {
   const { data, isLoading, error, reload } = useApiData(() => messageService.list());
   const messages = data || [];
   const [draft, setDraft] = useState("");
+  const [sentIds, setSentIds] = useState<Set<string>>(() => new Set());
   const [sending, setSending] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -33,7 +35,8 @@ export function ChatPage() {
     if (!content || sending) return;
     setSending(true);
     try {
-      await messageService.create(content);
+      const saved = await messageService.create(content);
+      setSentIds(previous => new Set(previous).add(saved.id));
       setDraft(previous => previous.trim() === content ? "" : previous);
       reload();
     } catch (error) {
@@ -64,7 +67,10 @@ export function ChatPage() {
             messages.map((m, i) => {
               const prev = messages[i - 1];
               const showSender = !prev || prev.member_id !== m.member_id;
-              return <MessageBubble key={m.id} message={m} isOwn={m.member_id === currentMember?.id} showSender={showSender} />;
+              return <div key={m.id}>
+                <MessageBubble message={m} isOwn={m.member_id === currentMember?.id} showSender={showSender} />
+                {m.member_id === currentMember?.id && <MessageChoreSuggestion messageId={m.id} autoAnalyze={sentIds.has(m.id)} />}
+              </div>;
             })}
         </div>
 
