@@ -110,15 +110,42 @@ limited to 10 per household per minute and 4 simultaneous calls per process
 Provider calls have a 15-second total timeout and no automatic retries.
 
 Suggestion dates are calendar dates, resolved relative to the message timestamp
-in `AI_TIMEZONE`. The client must select a due time and send an ISO datetime with
-an explicit offset to the chore API. Unknown or ambiguous assignees remain null.
+in `AI_TIMEZONE`. Explicit clock times are returned as `due_at`, an ISO datetime with an offset
+in `AI_TIMEZONE`. The form converts it to device-local time and preserves the
+instant when saving. Date-only suggestions leave time blank for user selection;
+no default 18:00 is invented. Unknown or ambiguous assignees remain null.
 Chat now analyzes newly sent messages and offers Review & add for detected chores.
 Users can edit the title, assignee, and local due time before confirming. Analysis
-failures offer Retry analysis without resending chat. Older own messages can be
-analyzed with Find a chore. Suggestions are not persisted across page reloads.
+failures offer Retry analysis for that message without resending chat. Analysis
+starts only after a successful send; history loading, rerenders, and refreshes
+do not trigger analysis. Suggestions are not persisted across page reloads.
+Run `npm --prefix frontend test` for the React analysis-flow regression test.
 
 On startup an additive migration adds the nullable `chores.source_message_id`
 column and its unique index to existing databases. Existing chores are preserved;
 back up the database before deployment. Deleting a chore permits recreating it
 from the message. The AI route has mocked tests; live Gemini verification requires
 your project's credentials/model.
+
+Obvious greetings, acknowledgements, laughter and emoji-only messages are filtered
+locally by the analysis endpoint before Gemini quota is reserved. They return the
+normal `is_task: false` response. Ambiguous text and greetings mixed with requests
+still reach Gemini; chat persistence and household authorization are unchanged.
+
+
+Analysis attempts are persisted on each message (`pending`, `processing`,
+`completed`, `skipped`, `failed`). An atomic DB claim is committed before Gemini
+is called. Duplicate requests reuse the saved result/error; concurrent requests
+receive `409 AI_ALREADY_ATTEMPTED`. Noise is saved as skipped before local quota
+reservation. The migration marks existing chat history skipped.
+
+Local `429 AI_RATE_LIMITED` leaves the message pending for a manual retry.
+Provider quota exhaustion is `503 AI_PROVIDER_RATE_LIMITED`, with
+`retryable: false`; no automatic retries occur. All provider attempts are terminal,
+including failures. A crash after claiming may leave `processing`; it is never
+reclaimed because Gemini might already have received the request. Add the chore
+manually in that case. Analysis never creates a chore; confirmation and
+`source_message_id` duplicate protection still apply.
+
+See [TESTING.md](TESTING.md) for the isolated team test server with simulated AI
+and the automated validation commands.

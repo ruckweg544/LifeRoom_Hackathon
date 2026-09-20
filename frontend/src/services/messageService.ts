@@ -4,7 +4,7 @@ import type { Message } from "../types";
 export interface MessageAnalysis {
   message_id: string;
   is_task: boolean;
-  suggestion: { title: string; assigned_to_id: string | null; due_date: string | null } | null;
+  suggestion: { title: string; assigned_to_id: string | null; due_date: string | null; due_at?: string | null } | null;
 }
 
 export const messageService = {

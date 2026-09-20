@@ -50,6 +50,11 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
     setSessionToken(null);
   }, []);
 
+  useEffect(() => {
+    window.addEventListener("liferoom:session-invalid", leaveHousehold);
+    return () => window.removeEventListener("liferoom:session-invalid", leaveHousehold);
+  }, [leaveHousehold]);
+
   // On first load, try to restore a session from a stored token.
   useEffect(() => {
     const token = getStoredToken();

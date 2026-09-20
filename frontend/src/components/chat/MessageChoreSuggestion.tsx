@@ -1,41 +1,44 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { AddChoreModal } from "../chores/AddChoreModal";
-import { messageService, type MessageAnalysis } from "../../services/messageService";
+import { type MessageAnalysis } from "../../services/messageService";
 import { choreService, type CreateChorePayload } from "../../services/choreService";
 import { ApiError } from "../../services/api";
 import { useToast } from "../../context/ToastContext";
 
-export function MessageChoreSuggestion({ messageId, autoAnalyze }: { messageId: string; autoAnalyze: boolean }) {
-  const [status, setStatus] = useState<"idle" | "loading" | "done" | "error" | "saved">("idle");
+export function MessageChoreSuggestion({ messageId, analysis, onRetry }: {
+  messageId: string;
+  analysis: Promise<MessageAnalysis>;
+  onRetry: () => void;
+}) {
+  const [status, setStatus] = useState<"loading" | "done" | "error" | "saved">("loading");
   const [suggestion, setSuggestion] = useState<MessageAnalysis["suggestion"]>(null);
   const [error, setError] = useState("");
+  const [retryable, setRetryable] = useState(true);
   const [open, setOpen] = useState(false);
-  const started = useRef(false);
-  const pending = useRef(false);
   const { showToast } = useToast();
 
-  const analyze = useCallback(async () => {
-    if (pending.current) return;
-    pending.current = true;
+  useEffect(() => {
+    let active = true;
     setStatus("loading");
-    try {
-      const result = await messageService.analyze(messageId);
+    // Observe the send handler's request; mounting never starts an analysis.
+    void analysis.then(result => {
+      if (!active) return;
       setSuggestion(result.suggestion);
       setStatus("done");
-    } catch (error) {
-      setError(error instanceof ApiError && error.status === 429
+    }, error => {
+      if (!active) return;
+      setRetryable(!(error instanceof ApiError) || (error.retryable !== false && error.code !== "AI_PROVIDER_RATE_LIMITED"));
+      setError(error instanceof ApiError && error.code === "AI_PROVIDER_RATE_LIMITED"
+        ? "Gemini's request or quota limit has been reached. Your message is saved. Add the chore manually; this message will not be analyzed again."
+        : error instanceof ApiError && error.code === "AI_NOT_CONFIGURED"
+        ? "AI is not configured on the server. Your message is saved."
+        : error instanceof ApiError && error.status === 429
         ? "Too many analyses. Wait a minute and retry."
         : "Analysis unavailable. Your message is already sent.");
       setStatus("error");
-    } finally { pending.current = false; }
-  }, [messageId]);
-
-  useEffect(() => {
-    if (autoAnalyze && !started.current) {
-      started.current = true;
-      void analyze();
-    }
-  }, [autoAnalyze, analyze]);
+    });
+    return () => { active = false; };
+  }, [analysis]);
 
   async function save(payload: CreateChorePayload) {
     try {
@@ -50,9 +53,8 @@ export function MessageChoreSuggestion({ messageId, autoAnalyze }: { messageId: 
   }
 
   return <div className="chat-chore-suggestion" aria-live="polite">
-    {status === "idle" && <button type="button" onClick={() => void analyze()}>Find a chore</button>}
     {status === "loading" && <span>Checking for a chore…</span>}
-    {status === "error" && <><span>{error} </span><button type="button" onClick={() => void analyze()}>Retry analysis</button></>}
+    {status === "error" && <><span>{error} </span>{retryable && <button type="button" onClick={onRetry}>Retry analysis</button>}</>}
     {status === "saved" && <span>Chore added — see Chores.</span>}
     {status === "done" && !suggestion && <span>No chore suggested.</span>}
     {suggestion && <><span>Suggested chore: {suggestion.title} </span>

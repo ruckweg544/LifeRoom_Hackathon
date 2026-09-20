@@ -1,4 +1,4 @@
-from sqlalchemy import ForeignKey, String, Text
+from sqlalchemy import ForeignKey, String, Text, JSON
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database.session import Base
@@ -14,3 +14,6 @@ class Message(TimestampMixin, Base):
 
     sender_name: Mapped[str] = mapped_column(String(60), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
+
+    analysis_status: Mapped[str] = mapped_column(String(20), default="pending", server_default="skipped", nullable=False)
+    analysis_data: Mapped[dict | None] = mapped_column(JSON, nullable=True)

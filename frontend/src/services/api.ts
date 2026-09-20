@@ -4,6 +4,8 @@ const API_URL = import.meta.env.VITE_API_URL || window.location.origin;
 
 export class ApiError extends Error {
   status: number;
+  code?: string;
+  retryable?: boolean;
   fieldErrors: { field: string; message: string }[];
 
   constructor(status: number, message: string, fieldErrors: { field: string; message: string }[] = []) {
@@ -61,8 +63,8 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 
   const headers: Record<string, string> = {};
   if (body !== undefined) headers["Content-Type"] = "application/json";
+  const token = auth ? getStoredToken() : null;
   if (auth) {
-    const token = getStoredToken();
     if (token) headers["Authorization"] = `Bearer ${token}`;
   }
 
@@ -92,9 +94,17 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   }
 
   if (!response.ok) {
+    if (response.status === 401 && token && getStoredToken() === token) {
+      clearToken();
+      window.dispatchEvent(new Event("liferoom:session-invalid"));
+    }
     const errShape = (payload || {}) as ApiErrorShape;
     const message = typeof errShape.detail === "string" ? errShape.detail : `Request failed (${response.status})`;
-    throw new ApiError(response.status, message, errShape.errors || []);
+    const error = new ApiError(response.status, message, errShape.errors || []);
+    const detail = (payload as { detail?: { code?: unknown; retryable?: unknown } } | null)?.detail;
+    if (detail && typeof detail.code === "string") error.code = detail.code;
+    if (detail && typeof detail.retryable === "boolean") error.retryable = detail.retryable;
+    throw error;
   }
 
   return payload as T;

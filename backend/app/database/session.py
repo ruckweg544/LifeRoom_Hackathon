@@ -55,3 +55,10 @@ def init_db() -> None:
             connection.execute(text(
                 "CREATE UNIQUE INDEX uq_chores_source_message_id ON chores (source_message_id)"
             ))
+
+        columns = {c["name"] for c in inspect(connection).get_columns("messages")}
+        if "analysis_status" not in columns:
+            # Existing history must never become eligible for a new provider call.
+            connection.execute(text("ALTER TABLE messages ADD COLUMN analysis_status VARCHAR(20) NOT NULL DEFAULT 'skipped'"))
+        if "analysis_data" not in columns:
+            connection.execute(text("ALTER TABLE messages ADD COLUMN analysis_data JSON"))

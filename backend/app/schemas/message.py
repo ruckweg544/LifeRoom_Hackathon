@@ -29,6 +29,7 @@ class ChoreSuggestion(BaseModel):
     title: str
     assigned_to_id: str | None = None
     due_date: date | None = None
+    due_at: datetime | None = None
 
 
 class MessageAnalysisOut(BaseModel):
