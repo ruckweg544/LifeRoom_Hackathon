@@ -1,6 +1,6 @@
 # Backend Comparison and Integration Order
 
-> This is a record of the comparison against the previous `origin/feature/backend`. The subsequently provided ZIP's modified integrated version is located in `backend/` and `frontend/`, and the current execution method is described in [README](README.md).
+> This is a record of the comparison against the previous `origin/feature/backend`. The subsequently provided ZIP's modified integrated version is located in `backend/` and `frontend/`, and the current execution method is described in [README](../README.md).
 > The incomplete items below are based on the branch at that time and do not represent the current state of the integrated version.
 
 Comparison basis: the locally stored `origin/feature/backend` at `41f0d9e`.

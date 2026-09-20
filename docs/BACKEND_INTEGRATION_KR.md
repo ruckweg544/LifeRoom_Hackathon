@@ -1,7 +1,7 @@
 # Backend 비교 및 통합 순서
 
 > 과거 `origin/feature/backend` 비교 기록입니다. 이후 제공된 ZIP의 수정 통합본은
-> `backend/`와 `frontend/`에 있으며 현재 실행 방법은 [README](README.md)를 따릅니다.
+> `backend/`와 `frontend/`에 있으며 현재 실행 방법은 [README](../README.md)를 따릅니다.
 > 아래의 미완료 항목은 당시 브랜치 기준이며 현재 통합본의 상태를 뜻하지 않습니다.
 
 비교 기준: 로컬에 저장된 `origin/feature/backend`의 `41f0d9e`.
