@@ -22,6 +22,9 @@ class Chore(TimestampMixin, Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
     household_id: Mapped[str] = mapped_column(ForeignKey("households.id", ondelete="CASCADE"), index=True, nullable=False)
 
+    source_message_id: Mapped[Optional[str]] = mapped_column(
+        ForeignKey("messages.id", ondelete="SET NULL"), nullable=True, unique=True)
+
     title: Mapped[str] = mapped_column(String(120), nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 

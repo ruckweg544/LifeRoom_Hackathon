@@ -1,6 +1,8 @@
 from app.websocket.connection_manager import manager
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
+from app.models.message import Message
 
 from app.core.deps import get_current_member
 from app.database.session import get_db
@@ -47,6 +49,16 @@ async def create_chore(
     current_member: Member = Depends(get_current_member),
     db: Session = Depends(get_db),
 ):
+    if payload.source_message_id is not None:
+        source = db.query(Message).filter(
+            Message.id == payload.source_message_id,
+            Message.household_id == current_member.household_id,
+        ).first()
+        if source is None:
+            raise HTTPException(404, "Message not found")
+        if db.query(Chore).filter(Chore.source_message_id == source.id).first():
+            raise HTTPException(409, "This message already has a chore")
+
     if payload.assigned_to_id is not None:
         assignee = (
             db.query(Member)
@@ -57,6 +69,7 @@ async def create_chore(
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Assignee is not a member of this household")
 
     chore = Chore(
+        source_message_id=payload.source_message_id,
         household_id=current_member.household_id,
         title=payload.title,
         description=payload.description,
@@ -66,7 +79,16 @@ async def create_chore(
         priority=payload.priority,
     )
     db.add(chore)
-    db.flush()
+    try:
+        db.flush()
+    except IntegrityError:
+        db.rollback()
+        if payload.source_message_id and db.query(Chore).filter(
+            Chore.source_message_id == payload.source_message_id,
+            Chore.household_id == current_member.household_id,
+        ).first():
+            raise HTTPException(409, "This message already has a chore") from None
+        raise
 
     log_activity(
         db,

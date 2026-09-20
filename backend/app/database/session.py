@@ -7,7 +7,7 @@ code needs to change.
 """
 from collections.abc import Generator
 
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, inspect, text
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 from app.core.config import get_settings
@@ -44,3 +44,21 @@ def init_db() -> None:
     from app import models  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
+
+    # Additive migration for databases created before chat-to-chore support.
+    with engine.begin() as connection:
+        if "source_message_id" not in {c["name"] for c in inspect(connection).get_columns("chores")}:
+            connection.execute(text(
+                "ALTER TABLE chores ADD COLUMN source_message_id VARCHAR(36) "
+                "REFERENCES messages(id) ON DELETE SET NULL"
+            ))
+            connection.execute(text(
+                "CREATE UNIQUE INDEX uq_chores_source_message_id ON chores (source_message_id)"
+            ))
+
+        columns = {c["name"] for c in inspect(connection).get_columns("messages")}
+        if "analysis_status" not in columns:
+            # Existing history must never become eligible for a new provider call.
+            connection.execute(text("ALTER TABLE messages ADD COLUMN analysis_status VARCHAR(20) NOT NULL DEFAULT 'skipped'"))
+        if "analysis_data" not in columns:
+            connection.execute(text("ALTER TABLE messages ADD COLUMN analysis_data JSON"))

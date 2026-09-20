@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { MessageChoreSuggestion } from "../components/chat/MessageChoreSuggestion";
 import { ConnectionBadge } from "../components/chat/ConnectionBadge";
 import { MessageBubble } from "../components/chat/MessageBubble";
 import { EmptyState } from "../components/common/ui";
@@ -9,7 +10,7 @@ import { SendIcon } from "../components/layout/icons";
 import { useHousehold } from "../context/HouseholdContext";
 import { useToast } from "../context/ToastContext";
 import { useApiData } from "../hooks/useApiData";
-import { messageService } from "../services/messageService";
+import { messageService, type MessageAnalysis } from "../services/messageService";
 import { ApiError } from "../services/api";
 
 import "./ChatPage.css";
@@ -21,6 +22,8 @@ export function ChatPage() {
   const { data, isLoading, error, reload } = useApiData(() => messageService.list());
   const messages = data || [];
   const [draft, setDraft] = useState("");
+  const [analyses, setAnalyses] = useState<Partial<Record<string, Promise<MessageAnalysis>>>>({});
+  const analyzing = useRef(new Set<string>());
   const [sending, setSending] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -28,12 +31,22 @@ export function ChatPage() {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" });
   }, [data]);
 
+  const analyzeMessage = (id: string) => {
+    if (analyzing.current.has(id)) return;
+    analyzing.current.add(id);
+    const request = messageService.analyze(id);
+    // Attach a rejection handler immediately, even before the message is rendered.
+    void request.then(() => analyzing.current.delete(id), () => analyzing.current.delete(id));
+    setAnalyses(previous => ({ ...previous, [id]: request }));
+  };
+
   const handleSend = async () => {
     const content = draft.trim();
     if (!content || sending) return;
     setSending(true);
     try {
-      await messageService.create(content);
+      const saved = await messageService.create(content);
+      analyzeMessage(saved.id);
       setDraft(previous => previous.trim() === content ? "" : previous);
       reload();
     } catch (error) {
@@ -63,8 +76,12 @@ export function ChatPage() {
             !error &&
             messages.map((m, i) => {
               const prev = messages[i - 1];
+              const analysis = analyses[m.id];
               const showSender = !prev || prev.member_id !== m.member_id;
-              return <MessageBubble key={m.id} message={m} isOwn={m.member_id === currentMember?.id} showSender={showSender} />;
+              return <div key={m.id}>
+                <MessageBubble message={m} isOwn={m.member_id === currentMember?.id} showSender={showSender} />
+                {analysis && <MessageChoreSuggestion messageId={m.id} analysis={analysis} onRetry={() => analyzeMessage(m.id)} />}
+              </div>;
             })}
         </div>
 
